@@ -1,0 +1,176 @@
+=======S1-Analyze=======
+train: 4041 images, 571 empty (14.1%), 5229 boxes, max 7 per image, 0 bad boxes
+valid: 1144 images, 177 empty (15.5%), 1463 boxes, max 7 per image, 0 bad boxes
+test: 570 images, 84 empty (14.7%), 732 boxes, max 7 per image, 0 bad boxes
+
+image shape: (640, 640, 3)
+
+Original photos shared between splits (leakage check):
+train & valid: 0
+train & test : 0
+valid & test : 0
+train has 4041 files but only 1387 original photos
+
+Box width  px: min 1 median 36 mean 46 max 322
+Box height px: min 2 median 82 mean 95 max 478
+Percentiles of longer side (10/25/50/75/90): [ 48.  62.  86. 122. 164.]
+saved box_sizes.png
+
+
+=======S2-Patches=======
+train: 28429 patches, 5229 human, 23200 not human
+valid: 8023 patches, 1463 human, 6560 not human
+test: 3996 patches, 732 human, 3264 not human
+
+
+=======S3-Features=======
+train: HOG 3780 + colour 512 + LBP 10 features for 28429 patches
+valid: HOG 3780 + colour 512 + LBP 10 features for 8023 patches
+test: HOG 3780 + colour 512 + LBP 10 features for 3996 patches
+
+
+=======S4-Model Baselines=======
+PCA keeps 44% of the variance with 150 components
+Logistic Regression  acc 0.954  recall 0.929  precision 0.835  F2 0.908  FN 104  (8s)
+Linear SVM           acc 0.955  recall 0.934  precision 0.836  F2 0.913  FN 96  (34s)
+RBF SVM              acc 0.977  recall 0.940  precision 0.935  F2 0.939  FN 88  (78s)
+Random Forest        acc 0.976  recall 0.958  precision 0.916  F2 0.949  FN 62  (250s)
+Extra Trees          acc 0.944  recall 0.699  precision 0.992  F2 0.743  FN 440  (103s)
+Gradient Boosting    acc 0.947  recall 0.878  precision 0.840  F2 0.870  FN 179  (21s)
+Decision Tree        acc 0.932  recall 0.814  precision 0.813  F2 0.814  FN 272  (518s)
+KNN                  acc 0.955  recall 0.765  precision 0.983  F2 0.800  FN 344  (1s)
+Naive Bayes          acc 0.912  recall 0.644  precision 0.834  F2 0.675  FN 521  (2s)
+saved results_baselines.csv and chart_accuracy/recall/precision.png
+
+
+=======S5-TUNING (Made no diff)=======
+Model		Def.F2	T.F2	T.rcal	T.prec	Missed (default → tuned)
+Linear SVM	0.913	0.918	0.943	0.829	96 → 83
+RBF SVM		0.939	0.939	0.944	0.918	88 → 82
+Random Forest	0.949	0.941	0.949	0.912	62 → 75
+
+
+=======S6-ABLATION=======
+F1 HOG               Random Forest  acc 0.926 recall 0.609 precision 0.976 F2 0.659 FN 572 (139s)
+F1 HOG               RBF SVM        acc 0.958 recall 0.882 precision 0.885 F2 0.883 FN 172 (138s)
+F2 HOG+colour        Random Forest  acc 0.976 recall 0.958 precision 0.916 F2 0.949 FN 61 (199s)
+F2 HOG+colour        RBF SVM        acc 0.976 recall 0.943 precision 0.925 F2 0.939 FN 84 (84s)
+F3 HOG+LBP           Random Forest  acc 0.938 recall 0.676 precision 0.974 F2 0.720 FN 474 (179s)
+F3 HOG+LBP           RBF SVM        acc 0.959 recall 0.884 precision 0.892 F2 0.885 FN 170 (141s)
+F4 HOG+colour+LBP    Random Forest  acc 0.976 recall 0.958 precision 0.916 F2 0.949 FN 62 (219s)
+F4 HOG+colour+LBP    RBF SVM        acc 0.974 recall 0.944 precision 0.918 F2 0.939 FN 82 (74s)
+saved results_ablation.csv, chart_ablation.png, model_rf_default.joblib
+
+
+The ablation shows that colour is doing the real work, and LBP adds nothing. Validation patches, F2 / missed humans:
+
+Features		RF / missed	RBF SVM
+F1 HOG only		0.659 / 572	0.883 / 172
+F2 HOG + colour		0.949 / 61	0.939 / 84
+F3 HOG + LBP		0.720 / 474	0.885 / 170
+F4 HOG + colour + LBP	0.949 / 62	0.939 / 82
+
+
+=======S7-mine=======
+Patch level (validation):
+  before mining  acc 0.976 recall 0.958 precision 0.916 F2 0.949
+  after mining   acc 0.978 recall 0.942 precision 0.937 F2 0.941
+
+False alarms on 177 human-free validation images (windows scoring > 0.5, 1137 windows per image):
+  before mining  windows flagged per image 3.67, images with at least one flag 28.2%, median max score 0.37
+  after mining   windows flagged per image 0.55, images with at least one flag 8.5%, median max score 0.29
+
+
+=======S8-SW inference on valid=======
+100/1144 images, 134s
+200/1144 images, 277s
+300/1144 images, 398s
+400/1144 images, 520s
+500/1144 images, 641s
+600/1144 images, 759s
+700/1144 images, 875s
+800/1144 images, 994s
+900/1144 images, 1112s
+1000/1144 images, 1229s
+1100/1144 images, 1347s
+saved scores_valid.npz (1144 images x 1137 windows) in 1404s
+
+
+=======S8-threshold=======
+1144 validation images: 967 with humans, 177 without
+
+Threshold for recall >= 95%: 0.350
+  acc       0.904
+  recall    0.950
+  precision 0.937
+  f2        0.948
+  fpr       0.350
+  TP        919
+  FP        62
+  FN        48
+  TN        115
+
+Other operating points:
+  recall >= 90%: threshold 0.473, recall 0.901, precision 0.973, false alarms on empty images 13.6%
+  recall >= 95%: threshold 0.350, recall 0.950, precision 0.937, false alarms on empty images 35.0% (chosen)
+  recall >= 98%: threshold 0.287, recall 0.981, precision 0.910, false alarms on empty images 53.1%
+  recall >= 99%: threshold 0.220, recall 0.992, precision 0.877, false alarms on empty images 76.3%
+  default 0.5   : recall 0.886, precision 0.978, false alarms on empty images 10.7%
+saved threshold.npy and chart_val_image_level.png
+
+
+=======S8-One-time SW inference on test=======
+100/570 images, 119s
+200/570 images, 242s
+300/570 images, 365s
+400/570 images, 488s
+500/570 images, 614s
+saved scores_test.npz (570 images x 1137 windows) in 705s
+
+
+=======S9-Test (threshold frozen at 0.35)=======
+TEST, threshold 0.350 (frozen from validation): 570 images, 486 with humans
+accuracy 0.909  recall 0.955  precision 0.939  F1 0.947  F2 0.952
+TP 464  FP 30  FN 22  TN 54   false alarms on empty images 35.7%
+saved test_errors.npz and chart_test_confusion.png
+
+
+=======S10-errors=======
+22 missed images, 30 false-alarm images
+Person size (longer side, px): all test median 83 | missed images median 48
+Share of people with longer side < 48 px: all 11% | missed images 48%
+Share lying down (wider than tall): all 12% | missed images 30%
+
+Missed images (name, #people, longest side px, max score):
+  gss1048_jpg.rf.abbdd3562e9c2 people 2  size  60  score 0.31
+  gss1054_jpg.rf.ca06221075585 people 1  size 102  score 0.30
+  gss1129_jpg.rf.9950d766cdb60 people 1  size  30  score 0.32
+  gss1552_jpg.rf.8c9ddf3493c36 people 1  size  34  score 0.26
+  gss1575_jpg.rf.07816bc589e66 people 1  size  46  score 0.21
+  gss1575_jpg.rf.2b1cba81d1cf1 people 1  size  28  score 0.22
+  gss1586_jpg.rf.e9b214aa8ed03 people 1  size  76  score 0.34
+  gss1593_jpg.rf.af52890ac9e0a people 1  size  57  score 0.18
+  gss1615_jpg.rf.72c7f66bd3894 people 1  size  45  score 0.25
+  gss393_jpg.rf.ca35e9306d92ed people 1  size  34  score 0.31
+  gss401_jpg.rf.3df89ecd8faf12 people 1  size  41  score 0.26
+  gss401_jpg.rf.c6210308aa316e people 1  size  41  score 0.30
+  gss482_jpg.rf.c737867c2549b5 people 1  size 112  score 0.32
+  gss518_jpg.rf.92bec73f692256 people 1  size  62  score 0.31
+  gss525_jpg.rf.cdf55df6849196 people 1  size  54  score 0.30
+  gss528_jpg.rf.8d8ba88ab94896 people 1  size  48  score 0.35
+  gss529_jpg.rf.aa34f1b1f35eae people 1  size  48  score 0.33
+  gss718_jpg.rf.8d53f4369eb6a8 people 1  size  44  score 0.27
+  gss740_jpg.rf.0fc99dbc54e56a people 1  size  99  score 0.31
+  gss795_jpg.rf.6541a7df217df7 people 1  size  78  score 0.21
+  gss855_jpg.rf.116a81879344aa people 1  size  31  score 0.14
+  gss951_jpg.rf.17e76a1d64c21a people 1  size  93  score 0.34
+
+False alarms: max score median 0.43
+saved errors_missed.png and errors_false_alarms.png
+
+
+
+
+
+
+
